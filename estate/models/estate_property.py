@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.exceptions import UserError
 import math
 import calendar
 from datetime import date, datetime, time
@@ -11,9 +12,15 @@ class EstateProperty(models.Model):
     
     def cancel_property(self):
         for record in self:
-            record.state= 'canceled'
+            if record.state == 'sold':
+                raise UserError('Sold properties cannot be canceled.')
+            else:
+                record.state= 'canceled'
     def sold_property(self):
         for record in self:
+            if record.state == 'canceled':
+                raise UserError('Canceled properties cannot be sold.')
+        else:
             record.state= 'sold'
 
     name = fields.Char(' ', required=True, translate=True, default= 'New')
@@ -90,12 +97,16 @@ class EstateOffer(models.Model):
     _description = 'Estate Offer'
 
     def accept_offer(self):
-        for record in self:
-            record.status= 'accepted'
-
+            for offer in self:
+                offer.status= 'accepted'
+                offer.property_id.selling_price= offer.price
+                for other_offer in offer.property_id.offer_ids:
+                    if other_offer != offer:
+                        other_offer.refuse_offer()
+                offer.property_id.buyer= offer.partner_id
     def refuse_offer(self):
-        for record in self:
-            record.status= 'refused'
+        for offer in self:
+            offer.status= 'refused'
 
     price= fields.Float('Price')
     status= fields.Selection(
